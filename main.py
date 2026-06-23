@@ -1,6 +1,5 @@
 from model import *
-import networkx as nx
-import matplotlib.pyplot as plt
+from sqlite_manager import SqliteManager
 
 def topological_sort(topics):
         WHITE = 0
@@ -40,6 +39,11 @@ def topological_sort(topics):
         return ordering
 
 def main():
-        pass
+        manager = SqliteManager("database.sqlite")
+
+        subject_list, topic_list = manager.get_object_lists()
+
+        ordering = topological_sort(topic_list)
+        print(f"Suggested topic order for you:\n{' -> '.join(map(str, ordering))}\n")          
 
 main()

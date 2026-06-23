@@ -7,11 +7,13 @@ class Subject:
         def add_topic(self, topic):
                 self.topics.append(topic)
 
+        def __str__(self):
+                return self.name
+
 class Topic:
-        def __init__(self, id, name, difficulty_level):
+        def __init__(self, id, name):
                 self.id = id
                 self.name = name
-                self.difficulty_level = difficulty_level
         
                 self.next_topics = [] # topics which this topic is a prerequisite for
                 self.subtopics = []
