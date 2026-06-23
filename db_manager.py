@@ -10,9 +10,9 @@ class DatabaseManager(ABC):
                 pass
 
         @abstractmethod
-        def add_new_topic(self, topic_name, main_topic_name, subject_name):
+        def add_new_topic(self, topic_name, main_topic_id, subject_id):
                 pass
 
         @abstractmethod
-        def add_new_prerequisite(self, first_topic_name, next_topic_name):
+        def add_new_prerequisite(self, first_topic_id, next_topic_id):
                 pass
