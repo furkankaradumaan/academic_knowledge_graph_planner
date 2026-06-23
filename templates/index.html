@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Akademik Bilgi Grafiği ve Asistanı</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
+    
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            background-color: #f4f6f9;
+        }
+        /* Sol Menü Tasarımı */
+        #sidebar {
+            width: 300px;
+            background-color: #2c3e50;
+            color: white;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+        }
+        h2 { margin-top: 0; color: #ecf0f1; border-bottom: 2px solid #34495e; padding-bottom: 10px; }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+        button:hover { background-color: #2980b9; }
+        #sort-btn { background-color: #2ecc71; }
+        #sort-btn:hover { background-color: #27ae60; }
+        
+        /* Sağ Taraf - Grafik Alanı Tasarımı */
+        #main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            width: calc(100% - 320px);
+        }
+        #cy {
+            flex-grow: 1;
+            background-color: #ffffff;
+            border-bottom: 1px solid #dcdde1;
+        }
+        /* Önerilen Sıralama Paneli */
+        #order-panel {
+            height: 150px;
+            background-color: #ffffff;
+            padding: 15px;
+            overflow-y: auto;
+            box-shadow: 0 -2px 5px rgba(0,0,0,0.05);
+        }
+        .order-item {
+            display: inline-block;
+            background-color: #e1b12c;
+            color: white;
+            padding: 8px 15px;
+            margin: 5px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- SOL MENÜ -->
+    <div id="sidebar">
+        <h2>Akademik Asistan</h2>
+        <p>Sistemin ürettiği bilgi grafiğini sağ tarafta görebilirsin. Grafı farenle sürükleyebilir, büyütebilirsin.</p>
+        
+        <button id="refresh-btn" onclick="loadGraph()">🔄 Grafı Yenile</button>
+        <button id="sort-btn" onclick="loadSorting()">🧠 Çalışma Sırasını Hesapla</button>
+    </div>
+
+    <!-- SAĞ TARAF (GRAFİK VE SIRALAMA) -->
+    <div id="main-content">
+        <!-- Cytoscape Grafiğinin Çizileceği Alan -->
+        <div id="cy"></div>
+        
+        <!-- Topolojik Sıralama Sonuçlarının Basılacağı Alan -->
+        <div id="order-panel">
+            <h3 style="margin-top:0; color:#2c3e50;">💡 Önerilen Akıllı Çalışma Sırası</h3>
+            <div id="order-list">Butona basarak algoritmayı tetikleyin...</div>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT / FLASK BAĞLANTI KATMANI -->
+    <script>
+        let cy;
+
+        // 1. Fonksiyon: Python API'den verileri çekip ekrana grafik çizme
+        async function loadGraph() {
+            try {
+                // Flask sunucumuzun yazdığımız API'sine istek atıyoruz
+                const response = await fetch('/api/graph');
+                const elements = await response.json();
+
+                // Grafik kütüphanesini başlatıyoruz
+                cy = cytoscape({
+                    container: document.getElementById('cy'),
+                    elements: elements,
+                    style: [
+                        // Konu Düğümleri (Topics) Tarzı
+                        {
+                            selector: 'node[type="TOPIC"]',
+                            style: {
+                                'background-color': '#2ecc71',
+                                'label': 'data(label)',
+                                'text-valign': 'center',
+                                'color': '#fff',
+                                'font-size': '12px',
+                                'width': '80px',
+                                'height': '80px'
+                            }
+                        },
+                        // Ders Düğümleri (Subjects) Tarzı
+                        {
+                            selector: 'node[type="SUBJECT"]',
+                            style: {
+                                'background-color': '#3498db',
+                                'label': 'data(label)',
+                                'text-valign': 'center',
+                                'color': '#fff',
+                                'font-size': '14px',
+                                'shape': 'rectangle',
+                                'width': '150px',
+                                'height': '70px'
+                            }
+                        },
+                        {
+                            selector: 'edge[label="PREREQUISITE"]',
+                            style: {
+                                'line-color': '#e74c3c', // Ön koşullar dikkat çeksin diye Kırmızı/Turuncu
+                                'target-arrow-color': '#e74c3c',
+                                'target-arrow-shape': 'triangle' // Ok işareti sadece ön koşulda olsun
+                            }
+                        },
+                        // İÇERİR Çizgilerine Özel Renk (YENİ EKLENDİ)
+                        {
+                            selector: 'edge[label="INCLUDES"]',
+                            style: {
+                                'line-color': '#3498db', // Ders bağlantıları Mavi
+                                'line-style': 'dashed', // Ders bağlantıları kesikli çizgi olsun ki ön koşulla karışmasın
+                                'target-arrow-shape': 'none' // Ok işaretine gerek yok, hiyerarşik bağ
+                            }
+                        },
+                        // Ön Koşul Çizgilerinin (Edges) Tarzı
+                        {
+                            selector: 'edge',
+                            style: {
+                                'width': 3,
+                                'line-color': '#95a5a6',
+                                'target-arrow-color': '#95a5a6',
+                                'target-arrow-shape': 'triangle', // Ok işareti ekliyoruz
+                                'curve-style': 'bezier',
+
+                                'label': 'data(label)', // Python'dan gelen "label" verisini oku
+                                'font-size': '10px',
+                                'text-background-opacity': 1, // Yazının arkasını kapat ki çizgi yazıyı kesmesin
+                                'text-background-color': '#ffffff',
+                                'text-background-padding': '3px',
+                                'color': '#333'
+                            }
+                        }
+                    ],
+                    // Grafiğin ekrandaki dağılım algoritması (Rastgele yerine çember düzeni)
+                    layout: {
+                        name: 'cose',
+                        animate: false,
+                        padding: 80,
+                        nodeRepulsion: function( node ){ return 400000; }, // Düğümleri birbirinden uzaklaştırır
+                        idealEdgeLength: function( edge ){ return 100; }
+                    }
+                });
+            } catch (error) {
+                console.error("Graf yüklenirken hata oluştu:", error);
+            }
+        }
+
+        // 2. Fonksiyon: Python DFS Algoritmasını tetikleyip sıralamayı ekrana yazma
+        async function loadSorting() {
+            const orderListDiv = document.getElementById('order-list');
+            orderListDiv.innerHTML = "Algoritma çalıştırılıyor...";
+            
+            try {
+                const response = await fetch('/api/sort');
+                const data = await response.json();
+
+                if (data.error) {
+                    orderListDiv.innerHTML = `<span style="color:red; font-weight:bold;">⚠️ Hata: ${data.error}</span>`;
+                    return;
+                }
+
+                // Gelen sıralama listesini HTML etiketlerine dönüştürme
+                orderListDiv.innerHTML = "";
+                data.order.forEach((topicName, index) => {
+                    orderListDiv.innerHTML += `<div class="order-item">${index + 1}. ${topicName}</div> ➔`;
+                });
+                orderListDiv.innerHTML = orderListDiv.innerHTML.slice(0, -2); // En sondaki oku siler
+                
+            } catch (error) {
+                orderListDiv.innerHTML = "Sıralama alınırken bir hata oluştu.";
+            }
+        }
+
+        // Sayfa ilk açıldığında grafiği otomatik yükle
+        window.onload = loadGraph;
+    </script>
+</body>
+</html>

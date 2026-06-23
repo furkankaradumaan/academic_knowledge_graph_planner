@@ -37,13 +37,3 @@ def topological_sort(topics):
         
         ordering.reverse()
         return ordering
-
-def main():
-        manager = SqliteManager("database.sqlite")
-
-        subject_list, topic_list = manager.get_object_lists()
-
-        ordering = topological_sort(topic_list)
-        print(f"Suggested topic order for you:\n{' -> '.join(map(str, ordering))}\n")          
-
-main()

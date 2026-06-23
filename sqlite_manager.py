@@ -11,7 +11,7 @@ class SqliteManager(DatabaseManager):
         def create_connection(self):
                 if self.conn is not None:
                         return
-                self.conn = sqlite3.connect(self.file_name)
+                self.conn = sqlite3.connect(self.file_name, check_same_thread=False)
                 self.cursor = self.conn.cursor() # necessary to execute commands
 
         def __get_id(self, name, table):
