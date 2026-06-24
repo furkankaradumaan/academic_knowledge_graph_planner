@@ -80,5 +80,59 @@ def get_study_order():
         
         return jsonify({"order": topic_names}), 200
 
+@app.route("/api/subject", methods=["POST"])
+def add_new_subject():
+        data = request.get_json()
+        subject_name = data.get("name")
+        if subject_name is None or len(subject_name) == 0:
+                return jsonify({"error": "You need to enter a subject name"}), 500
+
+        try:
+                db.add_new_subject(subject_name)
+                return jsonify({"message": f"'{subject_name}' added successfully"}), 201
+        except ValueError as e:
+                return jsonify({"error": str(e)}), 500
+
+@app.route("/api/topic", methods=["POST"])
+def add_new_topic():
+        data = request.get_json()
+        name = data.get("name")
+        subject_name = data.get("subject_name")
+        main_top_name = data.get("main_topic_name")
+
+        if name is None or len(name) == 0:
+                return jsonify({"error": "You need to enter a topic name"}), 500
+
+        if subject_name and main_topic_name:
+                return jsonify({"error": "You cannot enter both main topic name and subject name"}), 500
+        elif subject_name:
+                main_topic_name = None
+        elif main_topic_name:
+                subject_name = None
+        else:
+                return jsonify({"error": "You need to enter a main topic name or a subject name"}), 500
+
+        try:
+                db.add_new_topic(name, main_top_name, subject_name)
+                return jsonify({"message": f"'{name}' added successfully"}), 201
+        except ValueError as e:
+                return jsonify({"error": str(e)}), 500
+        
+@app.route("/api/prerequisite", methods=["POST"])
+def add_new_prerequisite():
+        data = request.get_json()
+
+        name_first = data.get("name_first")
+        name_next = data.get("name_next")
+
+        if name_first is None or name_next is None:
+                return jsonify({"error": "You need to enter first topic name and next topic name"}), 500
+
+        try:
+                db.add_new_prerequisite(name_first, name_next)
+                return jsonify({"message": "Prerequisite added successfully"}), 201
+        except ValueError as e:
+                return jsonify({"error": str(e)}), 500
+        
 if __name__ == "__main__":
         app.run(debug=True)

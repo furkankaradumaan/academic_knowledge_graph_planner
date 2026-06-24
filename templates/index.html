@@ -71,6 +71,22 @@
             font-weight: bold;
             font-size: 13px;
         }
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            background-color: #34495e;
+            padding: 12px;
+            border-radius: 8px;
+        }
+        .form-group h3 { margin: 0 0 5px 0; font-size: 14px; color: #ecf0f1; }
+        .form-group input {
+            padding: 8px;
+            border-radius: 4px;
+            border: none;
+            font-size: 13px;
+        }
+
     </style>
 </head>
 <body>
@@ -78,10 +94,39 @@
     <!-- SOL MENÜ -->
     <div id="sidebar">
         <h2>Akademik Asistan</h2>
-        <p>Sistemin ürettiği bilgi grafiğini sağ tarafta görebilirsin. Grafı farenle sürükleyebilir, büyütebilirsin.</p>
         
-        <button id="refresh-btn" onclick="loadGraph()">🔄 Grafı Yenile</button>
-        <button id="sort-btn" onclick="loadSorting()">🧠 Çalışma Sırasını Hesapla</button>
+        <!-- SİSTEM BUTONLARI -->
+        <div style="display:flex; gap:10px;">
+            <button id="refresh-btn" onclick="loadGraph()" style="flex:1;">🔄 Yenile</button>
+            <button id="sort-btn" onclick="loadSorting()" style="flex:2;">🧠 Sırala</button>
+        </div>
+        
+        <hr style="border: 1px solid #34495e; width:100%;">
+
+        <!-- 1. FORM: DERS EKLE -->
+        <div class="form-group">
+            <h3>📚 Yeni Ders Ekle</h3>
+            <input type="text" id="new-sub-name" placeholder="Örn: Lineer Cebir">
+            <button onclick="submitSubject()">Ekle</button>
+        </div>
+
+        <!-- 2. FORM: KONU VEYA ALT KONU EKLE -->
+        <div class="form-group">
+            <h3>🟢 Yeni Konu / Alt Konu Ekle</h3>
+            <input type="text" id="new-top-name" placeholder="Konu Adı (Örn: Matrisler)">
+            <input type="text" id="belonging-sub" placeholder="Ait Olduğu Ders (Ana konuysa yaz)">
+            <input type="text" id="parent-top" placeholder="Üst Konu Adı (Alt konuysa yaz)">
+            <small style="color:#bdc3c7; font-size:11px;">*Ana konuysa sadece Ders adını, alt konuysa sadece Üst Konu adını girin.</small>
+            <button onclick="submitTopic()" style="margin-top:5px;">Konuyu Ekle</button>
+        </div>
+
+        <!-- 3. FORM: ÖN KOŞUL BAĞLA -->
+        <div class="form-group">
+            <h3>🔗 Ön Koşul Bağlantısı Kur</h3>
+            <input type="text" id="pre-first" placeholder="Önce Yapılacak Konu">
+            <input type="text" id="pre-next" placeholder="Sonra Yapılacak Konu">
+            <button onclick="submitPrerequisite()" style="background-color:#e74c3c;">Bağlantıyı Kur</button>
+        </div>
     </div>
 
     <!-- SAĞ TARAF (GRAFİK VE SIRALAMA) -->
@@ -99,6 +144,61 @@
     <!-- JAVASCRIPT / FLASK BAĞLANTI KATMANI -->
     <script>
         let cy;
+                // 1. Ders Ekleme Tetikleyicisi
+        async function submitSubject() {
+            const nameInput = document.getElementById('new-sub-name');
+            const name = nameInput.value.trim();
+            if(!name) return alert("Ders adı girin!");
+
+            const response = await fetch('/api/subject', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name })
+            });
+            const resData = await response.json();
+            if(response.ok) { nameInput.value = ""; loadGraph(); } 
+            else alert(resData.error);
+        }
+
+        // 2. Konu/Alt Konu Ekleme Tetikleyicisi
+        async function submitTopic() {
+            const name = document.getElementById('new-top-name').value.trim();
+            const subName = document.getElementById('belonging-sub').value.trim();
+            const parentName = document.getElementById('parent-top').value.trim();
+            if(!name) return alert("Konu adı girin!");
+
+            const response = await fetch('/api/topic', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name, subject_name: subName, main_topic_name: parentName })
+            });
+            const resData = await response.json();
+            if(response.ok) {
+                document.getElementById('new-top-name').value = "";
+                document.getElementById('belonging-sub').value = "";
+                document.getElementById('parent-top').value = "";
+                loadGraph();
+            } else alert(resData.error);
+        }
+
+        // 3. Ön Koşul Bağlama Tetikleyicisi
+        async function submitPrerequisite() {
+            const first = document.getElementById('pre-first').value.trim();
+            const next = document.getElementById('pre-next').value.trim();
+            if(!first || !next) return alert("İki konuyu da girmeniz gerekir!");
+
+            const response = await fetch('/api/prerequisite', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name_first: first, name_next: next })
+            });
+            const resData = await response.json();
+            if(response.ok) {
+                document.getElementById('pre-first').value = "";
+                document.getElementById('pre-next').value = "";
+                loadGraph();
+            } else alert(resData.error);
+        }
 
         // 1. Fonksiyon: Python API'den verileri çekip ekrana grafik çizme
         async function loadGraph() {
