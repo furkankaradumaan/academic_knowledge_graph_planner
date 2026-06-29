@@ -14,6 +14,8 @@ class SqliteManager(DatabaseManager):
                 self.conn = sqlite3.connect(self.file_name, check_same_thread=False)
                 self.cursor = self.conn.cursor() # necessary to execute commands
 
+                self.cursor.execute("PRAGMA foreign_keys = ON;")
+
         def __get_id(self, name, table):
                 if self.conn is None:
                         self.create_connection()
@@ -78,6 +80,31 @@ class SqliteManager(DatabaseManager):
                 self.cursor.execute("INSERT INTO prerequisites (id_first, id_next) VALUES(?, ?)", (id_first, id_next))
                 self.conn.commit()
         
+        def delete_subject(self, name):
+                if self.conn is None:
+                        self.create_connection()
+                self.cursor.execute("DELETE FROM subjects WHERE name=?", (name, ))
+                self.conn.commit()
+        
+        def delete_topic(self, name):
+                if self.conn is None:
+                        self.create_connection()
+                self.cursor.execute("DELETE FROM topics WHERE name=?", (name, ))
+                self.conn.commit()
+
+        def delete_prerequisite(self, first, next):
+                if self.conn is None:
+                        self.create_connection()
+
+                id_first = self.__get_id(first, "topics")
+                id_next = self.__get_id(next, "topics")
+
+                if not id_first or not id_next:
+                        raise ValueError("Invalid topic name")
+
+                self.cursor.execute("DELETE FROM prerequisites WHERE id_first=? AND id_next=?", (id_first, id_next))
+                self.conn.commit()
+
         def get_object_lists(self):
                 if self.conn is None:
                         self.create_connection()

@@ -17,6 +17,8 @@
         /* Sol Menü Tasarımı */
         #sidebar {
             width: 300px;
+            min-width: 250px; /* En fazla bu kadar küçülebilir */
+            max-width: 500px; /* En fazla bu kadar büyüyebilir */
             background-color: #2c3e50;
             color: white;
             padding: 20px;
@@ -24,7 +26,21 @@
             flex-direction: column;
             gap: 20px;
             box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+            overflow-y: auto; 
+            height: calc(100vh - 40px); /* Padding düşülmüş tam yükseklik */
         }
+        
+        #resizer {
+            width: 6px;
+            cursor: ew-resize; /* Sağa sola genişletme ikonu */
+            background-color: #34495e;
+            transition: background 0.2s;
+        }
+        
+        #resizer:hover, #resizer:active {
+            background-color: #3498db; /* Fareyle üstüne gelince mavi olur */
+        }
+
         h2 { margin-top: 0; color: #ecf0f1; border-bottom: 2px solid #34495e; padding-bottom: 10px; }
         button {
             background-color: #3498db;
@@ -46,7 +62,6 @@
             flex: 1;
             display: flex;
             flex-direction: column;
-            width: calc(100% - 320px);
         }
         #cy {
             flex-grow: 1;
@@ -127,8 +142,31 @@
             <input type="text" id="pre-next" placeholder="Sonra Yapılacak Konu">
             <button onclick="submitPrerequisite()" style="background-color:#e74c3c;">Bağlantıyı Kur</button>
         </div>
+
+        <div class="form-group">
+            <h3>Ders Sil</h3>
+            <input type="text" id="del_sub_name" placeholder="Ders Adı: ">
+            <small>Büyük küçük harfleri doğru yazmalısınız</small>
+            <button onclick="deleteSubject()">Dersi Sil</button>
+        </div>
+
+        <div class="form-group">
+            <h3>Konu Sil</h3>
+            <input type="text" id="del_top_name" placeholder="Konu Adı: " >
+            <small>Büyük küçük harfleri doğru yazmalısınız</small>
+            <button onclick="deleteTopic()">Konuyu Sil</button>
+        </div>
+
+        <div class="form-group">
+            <h3>Önkoşul Sil</h3>
+            <input type="text" id="del_pre_first" placeholder="İlk Konu Adı: ">
+            <input type="text" id="del_pre_next" placeholder="Sonraki Konu Adı: ">
+            <button onclick="deletePrerequisite()">Önkoşulu Sil</button>
+        </div>
     </div>
 
+    <div id="resizer"></div>
+    
     <!-- SAĞ TARAF (GRAFİK VE SIRALAMA) -->
     <div id="main-content">
         <!-- Cytoscape Grafiğinin Çizileceği Alan -->
@@ -144,7 +182,49 @@
     <!-- JAVASCRIPT / FLASK BAĞLANTI KATMANI -->
     <script>
         let cy;
-                // 1. Ders Ekleme Tetikleyicisi
+        const sidebar = document.getElementById('sidebar');
+        const resizer = document.getElementById('resizer');
+
+        resizer.addEventListener('mousedown', function(e) {
+            e.preventDefault();
+            // Metin seçilmelerini engelle
+            document.body.style.userSelect = 'none';
+            document.body.style.webkitUserSelect = 'none';
+            
+            // Grafik kanvasının fare hareketlerini yutmasını engellemek için kritik CSS dokunuşu
+            document.getElementById('cy').style.pointerEvents = 'none';
+            
+            document.addEventListener('mousemove', startResize);
+            document.addEventListener('mouseup', stopResize);
+        });
+
+        function startResize(e) {
+            // Fare koordinatını tüm tarayıcı penceresi ölçeğinde yakalar
+            const newWidth = e.clientX;
+            
+            if (newWidth >= 250 && newWidth <= 500) { // Sınırlar dahilinde
+                sidebar.style.width = newWidth + 'px';
+                // Genişlik değiştikçe grafiği anlık ve zorunlu olarak esnet
+                if (cy) {
+                    cy.resize();
+                    cy.invalidateDimensions(); // Grafik alanını sıfır gecikmeyle yeniler
+                }
+            }
+        }
+
+        function stopResize() {
+            // Sürükleme bittiğinde kısıtlamaları kaldır ve grafiğe fare kontrollerini geri ver
+            document.body.style.userSelect = '';
+            document.body.style.webkitUserSelect = '';
+            document.getElementById('cy').style.pointerEvents = 'auto';
+            
+            document.removeEventListener('mousemove', startResize);
+            document.removeEventListener('mouseup', stopResize);
+            
+            // Son bir kez grafiği oturt
+            if (cy) cy.resize();
+        }
+
         async function submitSubject() {
             const nameInput = document.getElementById('new-sub-name');
             const name = nameInput.value.trim();
@@ -200,25 +280,85 @@
             } else alert(resData.error);
         }
 
-        // 1. Fonksiyon: Python API'den verileri çekip ekrana grafik çizme
+        async function deleteSubject() {
+            const subjectName = document.getElementById("del_sub_name").value.trim();
+            if (!subjectName) return alert("Ders ismini girmelisiniz!");
+
+            const response = await fetch(`/api/del/subject?name=${encodeURIComponent(subjectName)}`, {
+                method: "DELETE"
+            });
+
+            const resData = await response.json();
+            if (response.ok) {
+                document.getElementById("del_sub_name").value = "";
+            } else alert(resData.error);
+
+            loadGraph();
+        }
+
+        async function deleteTopic() {
+            const topicName = document.getElementById("del_top_name").value.trim();
+            if (!topicName) return alert("Konu ismi girmelisiniz");
+
+            const response = await fetch(`/api/del/topic?name=${encodeURIComponent(topicName)}`, {
+                method: "DELETE"
+            });
+
+            const resData = await response.json();
+            if (response.ok) {
+                document.getElementById("del_top_name").value = "";
+            } else alert(resData.error);
+            
+            loadGraph();
+        }
+
+        async function deletePrerequisite() {
+            const name_first = document.getElementById("del_pre_first").value.trim();
+            const name_next = document.getElementById("del_pre_next").value.trim();
+
+            if (!name_first || !name_next) {
+                return alert("Önceki konu ve sonraki konu isimlerini girmelisiniz");
+            }
+
+            const response = await fetch(`/api/del/prerequisite?first=${encodeURIComponent(name_first)}&next=${encodeURIComponent(name_next)}`, {
+                method: "DELETE"
+            });
+
+            const resData = await response.json();
+            if (response.ok) {
+                document.getElementById("del_pre_first").value = "";
+                document.getElementById("del_pre_next").value = "";
+            } else alert(resData.error);
+
+            loadGraph();
+        }
+
         async function loadGraph() {
             try {
                 // Flask sunucumuzun yazdığımız API'sine istek atıyoruz
                 const response = await fetch('/api/graph');
                 const elements = await response.json();
-
+        
                 // Grafik kütüphanesini başlatıyoruz
                 cy = cytoscape({
                     container: document.getElementById('cy'),
                     elements: elements,
                     style: [
+                        // 1. GENEL DÜĞÜM (NODE) AYARLARI
+                        {
+                            selector: 'node',
+                            style: {
+                                'text-valign': 'center',
+                                'text-halign': 'center',
+                                'font-family': 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif'
+                            }
+                        },
                         // Konu Düğümleri (Topics) Tarzı
                         {
                             selector: 'node[type="TOPIC"]',
                             style: {
                                 'background-color': '#2ecc71',
                                 'label': 'data(label)',
-                                'text-valign': 'center',
                                 'color': '#fff',
                                 'font-size': '12px',
                                 'width': '80px',
@@ -231,7 +371,6 @@
                             style: {
                                 'background-color': '#3498db',
                                 'label': 'data(label)',
-                                'text-valign': 'center',
                                 'color': '#fff',
                                 'font-size': '14px',
                                 'shape': 'rectangle',
@@ -239,6 +378,28 @@
                                 'height': '70px'
                             }
                         },
+        
+                        // 2. GENEL ÇİZGİ (EDGE) AYARLARI 
+                        // (Özel kuralların bunu ezebilmesi için en üste taşındı)
+                        {
+                            selector: 'edge',
+                            style: {
+                                'width': 3,
+                                'line-color': '#95a5a6',
+                                'target-arrow-color': '#95a5a6',
+                                'target-arrow-shape': 'triangle',
+                                'curve-style': 'bezier',
+                                'label': 'data(label)', // Python'dan gelen "label" verisini oku
+                                'font-size': '10px',
+                                'text-background-opacity': 1, // Yazının arkasını kapat ki çizgi yazıyı kesmesin
+                                'text-background-color': '#ffffff',
+                                'text-background-padding': '3px',
+                                'color': '#333'
+                            }
+                        },
+        
+                        // 3. ÖZEL ÇİZGİ AYARLARI (Genel ayarları ezer)
+                        // Ön Koşul Çizgilerine Özel Renk
                         {
                             selector: 'edge[label="PREREQUISITE"]',
                             style: {
@@ -247,48 +408,29 @@
                                 'target-arrow-shape': 'triangle' // Ok işareti sadece ön koşulda olsun
                             }
                         },
-                        // İÇERİR Çizgilerine Özel Renk (YENİ EKLENDİ)
+                        // İÇERİR Çizgilerine Özel Renk
                         {
                             selector: 'edge[label="INCLUDES"]',
                             style: {
                                 'line-color': '#3498db', // Ders bağlantıları Mavi
-                                'line-style': 'dashed', // Ders bağlantıları kesikli çizgi olsun ki ön koşulla karışmasın
+                                'line-style': 'dashed', // Ders bağlantıları kesikli çizgi olsun
                                 'target-arrow-shape': 'none' // Ok işaretine gerek yok, hiyerarşik bağ
-                            }
-                        },
-                        // Ön Koşul Çizgilerinin (Edges) Tarzı
-                        {
-                            selector: 'edge',
-                            style: {
-                                'width': 3,
-                                'line-color': '#95a5a6',
-                                'target-arrow-color': '#95a5a6',
-                                'target-arrow-shape': 'triangle', // Ok işareti ekliyoruz
-                                'curve-style': 'bezier',
-
-                                'label': 'data(label)', // Python'dan gelen "label" verisini oku
-                                'font-size': '10px',
-                                'text-background-opacity': 1, // Yazının arkasını kapat ki çizgi yazıyı kesmesin
-                                'text-background-color': '#ffffff',
-                                'text-background-padding': '3px',
-                                'color': '#333'
                             }
                         }
                     ],
-                    // Grafiğin ekrandaki dağılım algoritması (Rastgele yerine çember düzeni)
+                    // Grafiğin ekrandaki hiyerarşik dağılım algoritması
                     layout: {
-                        name: 'cose',
+                        name: 'breadthfirst',
+                        directed: true,      // İlişkilerin yönünü (Yukarıdan aşağıya) dikkate alır
+                        spacingFactor: 1.4,  // Düğümlerin birbirine olan uzaklık çarpanı (Araları açar)
                         animate: false,
-                        padding: 80,
-                        nodeRepulsion: function( node ){ return 400000; }, // Düğümleri birbirinden uzaklaştırır
-                        idealEdgeLength: function( edge ){ return 100; }
+                        padding: 50
                     }
                 });
             } catch (error) {
                 console.error("Graf yüklenirken hata oluştu:", error);
             }
         }
-
         // 2. Fonksiyon: Python DFS Algoritmasını tetikleyip sıralamayı ekrana yazma
         async function loadSorting() {
             const orderListDiv = document.getElementById('order-list');

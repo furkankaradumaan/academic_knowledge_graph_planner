@@ -103,11 +103,11 @@ def add_new_topic():
         if name is None or len(name) == 0:
                 return jsonify({"error": "You need to enter a topic name"}), 500
 
-        if subject_name and main_topic_name:
+        if len(subject_name) > 0 and len(main_top_name) > 0:
                 return jsonify({"error": "You cannot enter both main topic name and subject name"}), 500
-        elif subject_name:
-                main_topic_name = None
-        elif main_topic_name:
+        elif len(subject_name) > 0:
+                main_top_name = None
+        elif len(main_top_name) > 0:
                 subject_name = None
         else:
                 return jsonify({"error": "You need to enter a main topic name or a subject name"}), 500
@@ -133,6 +133,46 @@ def add_new_prerequisite():
                 return jsonify({"message": "Prerequisite added successfully"}), 201
         except ValueError as e:
                 return jsonify({"error": str(e)}), 500
+
+@app.route("/api/del/subject", methods=["DELETE"])
+def delete_subject():
+        name = request.args.get("name")
+
+        if not name:
+                return jsonify({"error": "You need to enter a subject name"}), 500
         
+        try:
+                db.delete_subject(name)
+                return jsonify({"message": "Deleted successfully"}), 200
+        except Exception as e:
+                return jsonify({"error": str(e)}), 500
+
+@app.route("/api/del/topic", methods=["DELETE"])
+def delete_topic():
+        name = request.args.get("name")
+
+        if not name:
+                return jsonify({"error": "You need to enter topic name"}), 500
+        
+        try:
+                db.delete_topic(name)
+                return jsonify({"message": "Deleted successfully"}), 200
+        except Exception as e:
+                return jsonify({"error": str(e)}), 500
+
+@app.route("/api/del/prerequisite", methods=["DELETE"])
+def delete_prerequisite():
+        name_first = request.args.get("first")
+        name_next = request.args.get("next")
+
+        if not name_first or not name_next:
+                return jsonify({"error": "You need to enter first topic name and next topic name"}), 500
+
+        try:
+                db.delete_prerequisite(name_first, name_next)
+                return jsonify({"message": "Deleted successfully"}), 200
+        except Exception as e:
+                return jsonify({"error": str(e)}), 500
+
 if __name__ == "__main__":
         app.run(debug=True)
